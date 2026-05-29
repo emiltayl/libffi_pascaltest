@@ -1,2 +1,2 @@
 pascaltest: pascal.c
-	i686-linux-gnu-gcc -g -o pascaltest pascal.c -L. -lstruct_abi -Wl,-rpath,'$$ORIGIN' -lffi
+	i686-linux-gnu-gcc -g -o pascaltest pascal.c -L. -lstruct_abi -Wl,-rpath,'$$ORIGIN:$$ORIGIN/libffi/i686-pc-linux-gnu/.libs' -Ilibffi/i686-pc-linux-gnu/include/ -Llibffi/i686-pc-linux-gnu/.libs/ -lffi

@@ -15,6 +15,21 @@ type
     value: Integer;
   end;
 
+  TFourByteRecord = packed record
+    a: AnsiChar;
+    b: AnsiChar;
+    c: AnsiChar;
+    d: AnsiChar;
+  end;
+
+  TFiveByteRecord = packed record
+    a: AnsiChar;
+    b: AnsiChar;
+    c: AnsiChar;
+    d: AnsiChar;
+    e: AnsiChar;
+  end;
+
   TCdeclCallback = function(value: TFourInt64): TFourInt64; cdecl;
   TPascalCallback = function(value: TFourInt64): TFourInt64; pascal;
   TRegisterCallback = function(value: TFourInt64): TFourInt64; register;
@@ -29,6 +44,14 @@ type
   TTwoIntOneIntegerRegisterCallback = function(a: Integer; b: Integer; c: TOneInteger): TOneInteger; register;
   TIntOneIntegerIntPascalCallback = function(a: Integer; b: TOneInteger; c: Integer): TOneInteger; pascal;
   TIntOneIntegerIntRegisterCallback = function(a: Integer; b: TOneInteger; c: Integer): TOneInteger; register;
+  TFourBytePascalCallback = function(value: TFourByteRecord): TFourByteRecord; pascal;
+  TFourByteRegisterCallback = function(value: TFourByteRecord): TFourByteRecord; register;
+  TFiveBytePascalCallback = function(value: TFiveByteRecord): TFiveByteRecord; pascal;
+  TFiveByteRegisterCallback = function(value: TFiveByteRecord): TFiveByteRecord; register;
+  TIntPascalCallback = function(value: Integer): Integer; pascal;
+  TFourIntRegisterCallback = function(a: Integer; b: Integer; c: Integer; d: Integer): Integer; register;
+  TMixedAlignmentPascalCallback = function(a: ShortInt; b: SmallInt; c: LongInt; d: Int64; e: Single; f: Double): LongInt; pascal;
+  TMixedAlignmentRegisterCallback = function(a: ShortInt; b: SmallInt; c: LongInt; d: Int64; e: Single; f: Double): LongInt; register;
 
 function MakeTestStruct: TFourInt64;
 begin
@@ -54,6 +77,53 @@ end;
 procedure AssertSameOneIntegerStruct(expected: TOneInteger; actual: TOneInteger);
 begin
   Assert(expected.value = actual.value);
+end;
+
+function MakeFourByteRecord: TFourByteRecord;
+begin
+  Assert(SizeOf(TFourByteRecord) = 4);
+  Result.a := '0';
+  Result.b := '1';
+  Result.c := '2';
+  Result.d := '3';
+end;
+
+procedure AssertSameFourByteRecord(expected: TFourByteRecord; actual: TFourByteRecord);
+begin
+  Assert(expected.a = actual.a);
+  Assert(expected.b = actual.b);
+  Assert(expected.c = actual.c);
+  Assert(expected.d = actual.d);
+end;
+
+function MakeFiveByteRecord: TFiveByteRecord;
+begin
+  Assert(SizeOf(TFiveByteRecord) = 5);
+  Result.a := '0';
+  Result.b := '1';
+  Result.c := '2';
+  Result.d := '3';
+  Result.e := '4';
+end;
+
+procedure AssertSameFiveByteRecord(expected: TFiveByteRecord; actual: TFiveByteRecord);
+begin
+  Assert(expected.a = actual.a);
+  Assert(expected.b = actual.b);
+  Assert(expected.c = actual.c);
+  Assert(expected.d = actual.d);
+  Assert(expected.e = actual.e);
+end;
+
+function VerifyMixedAlignmentValues(a: ShortInt; b: SmallInt; c: LongInt; d: Int64; e: Single; f: Double): LongInt;
+begin
+  Assert(a = ShortInt($12));
+  Assert(b = SmallInt($3456));
+  Assert(c = LongInt($12345678));
+  Assert(d = Int64($1122334455667788));
+  Assert(e = Single(16.25));
+  Assert(f = Double(1024.5));
+  Result := LongInt($13572468);
 end;
 
 function return_struct_cdecl: TFourInt64; cdecl;
@@ -403,6 +473,132 @@ begin
   AssertSameOneIntegerStruct(input, output);
 end;
 
+function identity_four_byte_struct_pascal(value: TFourByteRecord): TFourByteRecord; pascal;
+var
+  expected: TFourByteRecord;
+begin
+  expected := MakeFourByteRecord;
+  AssertSameFourByteRecord(expected, value);
+  Result := value;
+end;
+
+function identity_four_byte_struct_register(value: TFourByteRecord): TFourByteRecord; register;
+var
+  expected: TFourByteRecord;
+begin
+  expected := MakeFourByteRecord;
+  AssertSameFourByteRecord(expected, value);
+  Result := value;
+end;
+
+function identity_five_byte_struct_pascal(value: TFiveByteRecord): TFiveByteRecord; pascal;
+var
+  expected: TFiveByteRecord;
+begin
+  expected := MakeFiveByteRecord;
+  AssertSameFiveByteRecord(expected, value);
+  Result := value;
+end;
+
+function identity_five_byte_struct_register(value: TFiveByteRecord): TFiveByteRecord; register;
+var
+  expected: TFiveByteRecord;
+begin
+  expected := MakeFiveByteRecord;
+  AssertSameFiveByteRecord(expected, value);
+  Result := value;
+end;
+
+procedure verify_four_byte_callback_pascal(callback: TFourBytePascalCallback); cdecl;
+var
+  input: TFourByteRecord;
+  output: TFourByteRecord;
+begin
+  Assert(Assigned(callback));
+  input := MakeFourByteRecord;
+  output := callback(input);
+  AssertSameFourByteRecord(input, output);
+end;
+
+procedure verify_four_byte_callback_register(callback: TFourByteRegisterCallback); cdecl;
+var
+  input: TFourByteRecord;
+  output: TFourByteRecord;
+begin
+  Assert(Assigned(callback));
+  input := MakeFourByteRecord;
+  output := callback(input);
+  AssertSameFourByteRecord(input, output);
+end;
+
+procedure verify_five_byte_callback_pascal(callback: TFiveBytePascalCallback); cdecl;
+var
+  input: TFiveByteRecord;
+  output: TFiveByteRecord;
+begin
+  Assert(Assigned(callback));
+  input := MakeFiveByteRecord;
+  output := callback(input);
+  AssertSameFiveByteRecord(input, output);
+end;
+
+procedure verify_five_byte_callback_register(callback: TFiveByteRegisterCallback); cdecl;
+var
+  input: TFiveByteRecord;
+  output: TFiveByteRecord;
+begin
+  Assert(Assigned(callback));
+  input := MakeFiveByteRecord;
+  output := callback(input);
+  AssertSameFiveByteRecord(input, output);
+end;
+
+procedure verify_int_callback_pascal(callback: TIntPascalCallback); cdecl;
+var
+  output: Integer;
+begin
+  Assert(Assigned(callback));
+  output := callback(41);
+  Assert(output = 42);
+end;
+
+procedure verify_four_int_callback_register(callback: TFourIntRegisterCallback); cdecl;
+var
+  output: Integer;
+begin
+  Assert(Assigned(callback));
+  output := callback(0, 1, 2, 3);
+  Assert(output = 6);
+end;
+
+function verify_mixed_alignment_pascal(a: ShortInt; b: SmallInt; c: LongInt; d: Int64; e: Single; f: Double): LongInt; pascal;
+begin
+  Result := VerifyMixedAlignmentValues(a, b, c, d, e, f);
+end;
+
+function verify_mixed_alignment_register(a: ShortInt; b: SmallInt; c: LongInt; d: Int64; e: Single; f: Double): LongInt; register;
+begin
+  Result := VerifyMixedAlignmentValues(a, b, c, d, e, f);
+end;
+
+procedure verify_mixed_alignment_callback_pascal(callback: TMixedAlignmentPascalCallback); cdecl;
+var
+  output: LongInt;
+begin
+  Assert(Assigned(callback));
+  output := callback(ShortInt($12), SmallInt($3456), LongInt($12345678), Int64($1122334455667788), Single(16.25), Double(1024.5));
+  Assert(output = LongInt($13572468));
+end;
+
+procedure verify_mixed_alignment_callback_register(callback: TMixedAlignmentRegisterCallback); cdecl;
+var
+  output: LongInt;
+begin
+  Assert(Assigned(callback));
+  output := callback(ShortInt($12), SmallInt($3456), LongInt($12345678), Int64($1122334455667788), Single(16.25), Double(1024.5));
+  Assert(output = LongInt($13572468));
+end;
+
 procedure mutate_large_struct_pascal(input: TFourInt64); pascal;
 begin
   input.a := input.a + 1;
@@ -460,6 +656,20 @@ exports
   verify_two_int_one_integer_callback_register name 'verify_two_int_one_integer_callback_register',
   verify_int_one_integer_int_callback_pascal name 'verify_int_one_integer_int_callback_pascal',
   verify_int_one_integer_int_callback_register name 'verify_int_one_integer_int_callback_register',
+  identity_four_byte_struct_pascal name 'identity_four_byte_struct_pascal',
+  identity_four_byte_struct_register name 'identity_four_byte_struct_register',
+  identity_five_byte_struct_pascal name 'identity_five_byte_struct_pascal',
+  identity_five_byte_struct_register name 'identity_five_byte_struct_register',
+  verify_four_byte_callback_pascal name 'verify_four_byte_callback_pascal',
+  verify_four_byte_callback_register name 'verify_four_byte_callback_register',
+  verify_five_byte_callback_pascal name 'verify_five_byte_callback_pascal',
+  verify_five_byte_callback_register name 'verify_five_byte_callback_register',
+  verify_int_callback_pascal name 'verify_int_callback_pascal',
+  verify_four_int_callback_register name 'verify_four_int_callback_register',
+  verify_mixed_alignment_pascal name 'verify_mixed_alignment_pascal',
+  verify_mixed_alignment_register name 'verify_mixed_alignment_register',
+  verify_mixed_alignment_callback_pascal name 'verify_mixed_alignment_callback_pascal',
+  verify_mixed_alignment_callback_register name 'verify_mixed_alignment_callback_register',
   mutate_large_struct_pascal name 'mutate_large_struct_pascal',
   mutate_large_struct_register name 'mutate_large_struct_register';
 begin

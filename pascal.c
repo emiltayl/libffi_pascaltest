@@ -16,6 +16,21 @@ struct one_integer {
     int32_t value;
 };
 
+struct four_byte_record {
+    uint8_t a;
+    uint8_t b;
+    uint8_t c;
+    uint8_t d;
+};
+
+struct five_byte_record {
+    uint8_t a;
+    uint8_t b;
+    uint8_t c;
+    uint8_t d;
+    uint8_t e;
+};
+
 struct four_int64 return_struct_cdecl();
 struct four_int64 return_struct_pascal();
 struct four_int64 return_struct_register();
@@ -56,8 +71,32 @@ void verify_two_int_one_integer_callback_pascal(void *fn_ptr);
 void verify_two_int_one_integer_callback_register(void *fn_ptr);
 void verify_int_one_integer_int_callback_pascal(void *fn_ptr);
 void verify_int_one_integer_int_callback_register(void *fn_ptr);
+struct four_byte_record identity_four_byte_struct_pascal(struct four_byte_record value);
+struct four_byte_record identity_four_byte_struct_register(struct four_byte_record value);
+struct five_byte_record identity_five_byte_struct_pascal(struct five_byte_record value);
+struct five_byte_record identity_five_byte_struct_register(struct five_byte_record value);
+void verify_four_byte_callback_pascal(void *fn_ptr);
+void verify_four_byte_callback_register(void *fn_ptr);
+void verify_five_byte_callback_pascal(void *fn_ptr);
+void verify_five_byte_callback_register(void *fn_ptr);
+void verify_int_callback_pascal(void *fn_ptr);
+void verify_four_int_callback_register(void *fn_ptr);
 void mutate_large_struct_pascal(struct four_int64);
 void mutate_large_struct_register(struct four_int64);
+void verify_integer_sizes_register(int8_t a, int16_t b, int32_t c, int64_t d, struct four_int64 e);
+int32_t verify_mixed_alignment_pascal(int8_t a, int16_t b, int32_t c, int64_t d, float e, double f);
+int32_t verify_mixed_alignment_register(int8_t a, int16_t b, int32_t c, int64_t d, float e, double f);
+void verify_mixed_alignment_callback_pascal(void *fn_ptr);
+void verify_mixed_alignment_callback_register(void *fn_ptr);
+
+#define MIXED_ALIGNMENT_NARGS 6
+#define MIXED_ALIGNMENT_INT8 ((int8_t)0x12)
+#define MIXED_ALIGNMENT_INT16 ((int16_t)0x3456)
+#define MIXED_ALIGNMENT_INT32 ((int32_t)0x12345678)
+#define MIXED_ALIGNMENT_INT64 INT64_C(0x1122334455667788)
+#define MIXED_ALIGNMENT_FLOAT 16.25f
+#define MIXED_ALIGNMENT_DOUBLE 1024.5
+#define MIXED_ALIGNMENT_RESULT ((int32_t)0x13572468)
 
 struct four_int64 get_struct() {
     struct four_int64 val;
@@ -76,6 +115,33 @@ struct one_integer get_one_integer_struct() {
     return val;
 }
 
+struct four_byte_record get_four_byte_record() {
+    struct four_byte_record val;
+
+    assert(sizeof(struct four_byte_record) == 4);
+
+    val.a = '0';
+    val.b = '1';
+    val.c = '2';
+    val.d = '3';
+
+    return val;
+}
+
+struct five_byte_record get_five_byte_record() {
+    struct five_byte_record val;
+
+    assert(sizeof(struct five_byte_record) == 5);
+
+    val.a = '0';
+    val.b = '1';
+    val.c = '2';
+    val.d = '3';
+    val.e = '4';
+
+    return val;
+}
+
 struct four_int64 native_identity_fn(struct four_int64 arg) {
     return arg;
 }
@@ -89,6 +155,21 @@ void assert_equal(struct four_int64 a, struct four_int64 b) {
 
 void assert_equal_one_integer(struct one_integer a, struct one_integer b) {
     assert(a.value == b.value);
+}
+
+void assert_equal_four_byte_record(struct four_byte_record a, struct four_byte_record b) {
+    assert(a.a == b.a);
+    assert(a.b == b.b);
+    assert(a.c == b.c);
+    assert(a.d == b.d);
+}
+
+void assert_equal_five_byte_record(struct five_byte_record a, struct five_byte_record b) {
+    assert(a.a == b.a);
+    assert(a.b == b.b);
+    assert(a.c == b.c);
+    assert(a.d == b.d);
+    assert(a.e == b.e);
 }
 
 void closure_handler(ffi_cif *cif, void *ret, void *args[], void *data) {
@@ -126,36 +207,78 @@ void int_one_integer_int_closure_handler(ffi_cif *cif, void *ret, void *args[], 
     *(struct one_integer *)ret = *(struct one_integer *)args[1];
 }
 
+void four_byte_record_closure_handler(ffi_cif *cif, void *ret, void *args[], void *data) {
+    *(struct four_byte_record *)ret = *(struct four_byte_record *)args[0];
+}
 
-void test_callback(ffi_abi abi, void (*assert_callback)(void *)) {
-    ffi_type test_struct_type = {0};
-    ffi_type *type_elems[5];
+void five_byte_record_closure_handler(ffi_cif *cif, void *ret, void *args[], void *data) {
+    *(struct five_byte_record *)ret = *(struct five_byte_record *)args[0];
+}
 
-    test_struct_type.type = FFI_TYPE_STRUCT;
-    test_struct_type.elements = (ffi_type **) &type_elems;
+void int_pascal_closure_handler(ffi_cif *cif, void *ret, void *args[], void *data) {
+    assert(*((int32_t *)args[0]) == 41);
+    *(int32_t *)ret = 42;
+}
 
-    type_elems[0] = &ffi_type_uint64;
-    type_elems[1] = &ffi_type_uint64;
-    type_elems[2] = &ffi_type_uint64;
-    type_elems[3] = &ffi_type_uint64;
-    type_elems[4] = NULL;
+void four_int_register_closure_handler(ffi_cif *cif, void *ret, void *args[], void *data) {
+    assert(*((int32_t *)args[0]) == 0);
+    assert(*((int32_t *)args[1]) == 1);
+    assert(*((int32_t *)args[2]) == 2);
+    assert(*((int32_t *)args[3]) == 3);
+    *(int32_t *)ret = 6;
+}
 
-    ffi_cif cif;
-    ffi_type *arg_types[1];
-    ffi_closure *closure;
-    void *code;
+void assert_mixed_alignment_values(int8_t a, int16_t b, int32_t c, int64_t d, float e, double f) {
+    assert(a == MIXED_ALIGNMENT_INT8);
+    assert(b == MIXED_ALIGNMENT_INT16);
+    assert(c == MIXED_ALIGNMENT_INT32);
+    assert(d == MIXED_ALIGNMENT_INT64);
+    assert(e == MIXED_ALIGNMENT_FLOAT);
+    assert(f == MIXED_ALIGNMENT_DOUBLE);
+}
 
-    arg_types[0] = &test_struct_type;
+void mixed_alignment_closure_handler(ffi_cif *cif, void *ret, void *args[], void *data) {
+    assert_mixed_alignment_values(
+        *((int8_t *)args[0]),
+        *((int16_t *)args[1]),
+        *((int32_t *)args[2]),
+        *((int64_t *)args[3]),
+        *((float *)args[4]),
+        *((double *)args[5]));
+    *(int32_t *)ret = MIXED_ALIGNMENT_RESULT;
+}
 
-    closure = ffi_closure_alloc(sizeof(ffi_closure), &code);
-    assert(closure != NULL);
+void init_mixed_alignment_arg_types(ffi_type *arg_types[MIXED_ALIGNMENT_NARGS]) {
+    arg_types[0] = &ffi_type_sint8;
+    arg_types[1] = &ffi_type_sint16;
+    arg_types[2] = &ffi_type_sint32;
+    arg_types[3] = &ffi_type_sint64;
+    arg_types[4] = &ffi_type_float;
+    arg_types[5] = &ffi_type_double;
+}
 
-    assert(ffi_prep_cif(&cif, abi, 1, &test_struct_type, arg_types) == FFI_OK);
-    assert(ffi_prep_closure_loc(closure, &cif, closure_handler, NULL, code) == FFI_OK);
+void init_mixed_alignment_args(
+    void *args[MIXED_ALIGNMENT_NARGS],
+    int8_t *a,
+    int16_t *b,
+    int32_t *c,
+    int64_t *d,
+    float *e,
+    double *f)
+{
+    *a = MIXED_ALIGNMENT_INT8;
+    *b = MIXED_ALIGNMENT_INT16;
+    *c = MIXED_ALIGNMENT_INT32;
+    *d = MIXED_ALIGNMENT_INT64;
+    *e = MIXED_ALIGNMENT_FLOAT;
+    *f = MIXED_ALIGNMENT_DOUBLE;
 
-    assert_callback(code);
-
-    ffi_closure_free(closure);
+    args[0] = a;
+    args[1] = b;
+    args[2] = c;
+    args[3] = d;
+    args[4] = e;
+    args[5] = f;
 }
 
 void run_test_return_struct(ffi_type *test_struct_type, ffi_abi abi, void *fn_ptr) {
@@ -493,6 +616,161 @@ void run_test_int_one_integer_int_callback(ffi_type *test_struct_type, ffi_abi a
     ffi_closure_free(closure);
 }
 
+void run_test_four_byte_record_identity(ffi_type *test_struct_type, ffi_abi abi, void *fn_ptr) {
+    ffi_cif cif;
+    ffi_type *arg_types[1];
+    struct four_byte_record arg = get_four_byte_record();
+    struct four_byte_record result;
+    void *args[1];
+
+    arg_types[0] = test_struct_type;
+    args[0] = &arg;
+
+    assert(ffi_prep_cif(&cif, abi, 1, test_struct_type, arg_types) == FFI_OK);
+    ffi_call(&cif, fn_ptr, &result, args);
+
+    assert_equal_four_byte_record(result, get_four_byte_record());
+}
+
+void run_test_five_byte_record_identity(ffi_type *test_struct_type, ffi_abi abi, void *fn_ptr) {
+    ffi_cif cif;
+    ffi_type *arg_types[1];
+    struct five_byte_record arg = get_five_byte_record();
+    struct five_byte_record result;
+    void *args[1];
+
+    arg_types[0] = test_struct_type;
+    args[0] = &arg;
+
+    assert(ffi_prep_cif(&cif, abi, 1, test_struct_type, arg_types) == FFI_OK);
+    ffi_call(&cif, fn_ptr, &result, args);
+
+    assert_equal_five_byte_record(result, get_five_byte_record());
+}
+
+void run_test_four_byte_record_callback(ffi_type *test_struct_type, ffi_abi abi, void (*fn_ptr)(void *)) {
+    ffi_cif cif;
+    ffi_type *arg_types[1];
+
+    ffi_closure *closure;
+    void *code;
+
+    arg_types[0] = test_struct_type;
+
+    closure = ffi_closure_alloc(sizeof(ffi_closure), &code);
+    assert(closure != NULL);
+
+    assert(ffi_prep_cif(&cif, abi, 1, test_struct_type, arg_types) == FFI_OK);
+    assert(ffi_prep_closure_loc(closure, &cif, four_byte_record_closure_handler, NULL, code) == FFI_OK);
+
+    fn_ptr(code);
+
+    ffi_closure_free(closure);
+}
+
+void run_test_five_byte_record_callback(ffi_type *test_struct_type, ffi_abi abi, void (*fn_ptr)(void *)) {
+    ffi_cif cif;
+    ffi_type *arg_types[1];
+
+    ffi_closure *closure;
+    void *code;
+
+    arg_types[0] = test_struct_type;
+
+    closure = ffi_closure_alloc(sizeof(ffi_closure), &code);
+    assert(closure != NULL);
+
+    assert(ffi_prep_cif(&cif, abi, 1, test_struct_type, arg_types) == FFI_OK);
+    assert(ffi_prep_closure_loc(closure, &cif, five_byte_record_closure_handler, NULL, code) == FFI_OK);
+
+    fn_ptr(code);
+
+    ffi_closure_free(closure);
+}
+
+void run_test_int_callback_pascal(void (*fn_ptr)(void *)) {
+    ffi_cif cif;
+    ffi_type *arg_types[1];
+
+    ffi_closure *closure;
+    void *code;
+
+    arg_types[0] = &ffi_type_sint32;
+
+    closure = ffi_closure_alloc(sizeof(ffi_closure), &code);
+    assert(closure != NULL);
+
+    assert(ffi_prep_cif(&cif, FFI_PASCAL, 1, &ffi_type_sint32, arg_types) == FFI_OK);
+    assert(ffi_prep_closure_loc(closure, &cif, int_pascal_closure_handler, NULL, code) == FFI_OK);
+
+    fn_ptr(code);
+
+    ffi_closure_free(closure);
+}
+
+void run_test_four_int_callback_register(void (*fn_ptr)(void *)) {
+    ffi_cif cif;
+    ffi_type *arg_types[4];
+
+    ffi_closure *closure;
+    void *code;
+
+    arg_types[0] = &ffi_type_sint32;
+    arg_types[1] = &ffi_type_sint32;
+    arg_types[2] = &ffi_type_sint32;
+    arg_types[3] = &ffi_type_sint32;
+
+    closure = ffi_closure_alloc(sizeof(ffi_closure), &code);
+    assert(closure != NULL);
+
+    assert(ffi_prep_cif(&cif, FFI_REGISTER, 4, &ffi_type_sint32, arg_types) == FFI_OK);
+    assert(ffi_prep_closure_loc(closure, &cif, four_int_register_closure_handler, NULL, code) == FFI_OK);
+
+    fn_ptr(code);
+
+    ffi_closure_free(closure);
+}
+
+void run_test_mixed_alignment(ffi_abi abi, void *fn_ptr) {
+    ffi_cif cif;
+    ffi_type *arg_types[MIXED_ALIGNMENT_NARGS];
+    void *args[MIXED_ALIGNMENT_NARGS];
+    int8_t a;
+    int16_t b;
+    int32_t c;
+    int64_t d;
+    float e;
+    double f;
+    int32_t result;
+
+    init_mixed_alignment_arg_types(arg_types);
+    init_mixed_alignment_args(args, &a, &b, &c, &d, &e, &f);
+
+    assert(ffi_prep_cif(&cif, abi, MIXED_ALIGNMENT_NARGS, &ffi_type_sint32, arg_types) == FFI_OK);
+    ffi_call(&cif, fn_ptr, &result, args);
+
+    assert(result == MIXED_ALIGNMENT_RESULT);
+}
+
+void run_test_mixed_alignment_callback(ffi_abi abi, void (*fn_ptr)(void *)) {
+    ffi_cif cif;
+    ffi_type *arg_types[MIXED_ALIGNMENT_NARGS];
+    ffi_closure *closure;
+    void *code;
+
+    init_mixed_alignment_arg_types(arg_types);
+
+    closure = ffi_closure_alloc(sizeof(ffi_closure), &code);
+    assert(closure != NULL);
+
+    assert(ffi_prep_cif(&cif, abi, MIXED_ALIGNMENT_NARGS, &ffi_type_sint32, arg_types) == FFI_OK);
+    assert(ffi_prep_closure_loc(closure, &cif, mixed_alignment_closure_handler, NULL, code) == FFI_OK);
+
+    fn_ptr(code);
+
+    ffi_closure_free(closure);
+}
+
 void run_test_return_struct_null_rvalue(ffi_type *test_struct_type, ffi_abi abi, void *fn_ptr) {
     ffi_cif cif;
 
@@ -515,11 +793,40 @@ void run_test_mutate_large_struct(ffi_type *test_struct_type, ffi_abi abi, void 
     assert_equal(arg, get_struct());
 }
 
+void test_ffi_call_closure(ffi_type *test_struct_type, ffi_abi abi) {
+    ffi_cif cif;
+    ffi_type *arg_types[1];
+    void *args[1];
+    ffi_closure *closure;
+    void *code;
+    struct four_int64 struct_arg = get_struct();
+    struct four_int64 result;
+
+    arg_types[0] = test_struct_type;
+    args[0] = &struct_arg;
+
+    closure = ffi_closure_alloc(sizeof(ffi_closure), &code);
+    assert(closure != NULL);
+
+    assert(ffi_prep_cif(&cif, abi, 1, test_struct_type, arg_types) == FFI_OK);
+    assert(ffi_prep_closure_loc(closure, &cif, closure_handler, NULL, code) == FFI_OK);
+
+    ffi_call(&cif, code, &result, args);
+
+    assert_equal(struct_arg, result);
+
+    ffi_closure_free(closure);
+}
+
 void run_test(char testcase) {
     ffi_type test_struct_type = {0};
     ffi_type *type_elems[5];
     ffi_type one_integer_struct_type = {0};
     ffi_type *one_integer_type_elems[2];
+    ffi_type four_byte_record_type = {0};
+    ffi_type *four_byte_record_type_elems[5];
+    ffi_type five_byte_record_type = {0};
+    ffi_type *five_byte_record_type_elems[6];
 
     struct four_int64 arg;
     struct four_int64 result;
@@ -538,6 +845,25 @@ void run_test(char testcase) {
 
     one_integer_type_elems[0] = &ffi_type_sint32;
     one_integer_type_elems[1] = NULL;
+
+    four_byte_record_type.type = FFI_TYPE_STRUCT;
+    four_byte_record_type.elements = (ffi_type **) &four_byte_record_type_elems;
+
+    four_byte_record_type_elems[0] = &ffi_type_uint8;
+    four_byte_record_type_elems[1] = &ffi_type_uint8;
+    four_byte_record_type_elems[2] = &ffi_type_uint8;
+    four_byte_record_type_elems[3] = &ffi_type_uint8;
+    four_byte_record_type_elems[4] = NULL;
+
+    five_byte_record_type.type = FFI_TYPE_STRUCT;
+    five_byte_record_type.elements = (ffi_type **) &five_byte_record_type_elems;
+
+    five_byte_record_type_elems[0] = &ffi_type_uint8;
+    five_byte_record_type_elems[1] = &ffi_type_uint8;
+    five_byte_record_type_elems[2] = &ffi_type_uint8;
+    five_byte_record_type_elems[3] = &ffi_type_uint8;
+    five_byte_record_type_elems[4] = &ffi_type_uint8;
+    five_byte_record_type_elems[5] = NULL;
 
     printf("Running test %c: ", testcase);
 
@@ -738,6 +1064,64 @@ void run_test(char testcase) {
             printf("mutate_large_struct_register ...\n");
             run_test_mutate_large_struct(&test_struct_type, FFI_REGISTER, mutate_large_struct_register);
             break;
+        case 'W':
+            printf("test_ffi_call_closure_pascal ...\n");
+            test_ffi_call_closure(&test_struct_type, FFI_PASCAL);
+            break;
+        case 'X':
+            printf("test_ffi_call_closure_register ...\n");
+            test_ffi_call_closure(&test_struct_type, FFI_REGISTER);
+            break;
+        case 'Y':
+            printf("identity_four_byte_struct_pascal ...\n");
+            run_test_four_byte_record_identity(&four_byte_record_type, FFI_PASCAL, identity_four_byte_struct_pascal);
+            break;
+        case 'Z':
+            printf("identity_four_byte_struct_register ...\n");
+            run_test_four_byte_record_identity(&four_byte_record_type, FFI_REGISTER, identity_four_byte_struct_register);
+            break;
+        case '0':
+            printf("verify_four_byte_callback_pascal ...\n");
+            run_test_four_byte_record_callback(&four_byte_record_type, FFI_PASCAL, verify_four_byte_callback_pascal);
+            break;
+        case '1':
+            printf("verify_four_byte_callback_register ...\n");
+            run_test_four_byte_record_callback(&four_byte_record_type, FFI_REGISTER, verify_four_byte_callback_register);
+            break;
+        case '2':
+            printf("identity_five_byte_struct_pascal ...\n");
+            run_test_five_byte_record_identity(&five_byte_record_type, FFI_PASCAL, identity_five_byte_struct_pascal);
+            break;
+        case '3':
+            printf("identity_five_byte_struct_register ...\n");
+            run_test_five_byte_record_identity(&five_byte_record_type, FFI_REGISTER, identity_five_byte_struct_register);
+            break;
+        case '4':
+            printf("verify_five_byte_callback_pascal ...\n");
+            run_test_five_byte_record_callback(&five_byte_record_type, FFI_PASCAL, verify_five_byte_callback_pascal);
+            break;
+        case '5':
+            printf("verify_five_byte_callback_register ...\n");
+            run_test_five_byte_record_callback(&five_byte_record_type, FFI_REGISTER, verify_five_byte_callback_register);
+            break;
+        case '6':
+            printf("verify_int_callback_pascal ...\n");
+            run_test_int_callback_pascal(verify_int_callback_pascal);
+            break;
+        case '7':
+            printf("verify_four_int_callback_register ...\n");
+            run_test_four_int_callback_register(verify_four_int_callback_register);
+            break;
+        case '8':
+            printf("verify_mixed_alignment_pascal/register ...\n");
+            run_test_mixed_alignment(FFI_PASCAL, verify_mixed_alignment_pascal);
+            run_test_mixed_alignment(FFI_REGISTER, verify_mixed_alignment_register);
+            break;
+        case '9':
+            printf("verify_mixed_alignment_callback_pascal/register ...\n");
+            run_test_mixed_alignment_callback(FFI_PASCAL, verify_mixed_alignment_callback_pascal);
+            run_test_mixed_alignment_callback(FFI_REGISTER, verify_mixed_alignment_callback_register);
+            break;
         default:
             printf("ERROR! Unknown test case, aborting.\n");
             exit(1);
@@ -754,7 +1138,10 @@ int main(int argc, char **argv) {
     for (char a = 'a'; a <= 'z'; a++) {
         run_test(a);
     }
-    for (char a = 'A'; a <= 'V'; a++) {
+    for (char a = 'A'; a <= 'Z'; a++) {
+        run_test(a);
+    }
+    for (char a = '0'; a <= '9'; a++) {
         run_test(a);
     }
 
